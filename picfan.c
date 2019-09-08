@@ -24,6 +24,7 @@
 #define MAX_DELAY max_delay  // milliseconds
 #define SCALE_FACTOR scale_factor
 
+// Standard temperature settings
 #define COOLER  0
 #define COOL    1
 #define NORMAL  2
