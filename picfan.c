@@ -20,7 +20,7 @@
 #define MAX_DUTY max_duty
 #define MIN_DUTY min_duty
 #define TARGET_TEMP target_temp
-#define STATUS_FIFO "/tmp/fanspeed"
+#define STATUS_FIFO "/run/fanspeed"
 #define MAX_DELAY max_delay  // milliseconds
 #define SCALE_FACTOR scale_factor
 
@@ -51,14 +51,14 @@ float    attack = 2.0,
 /*
  * Sleep function which takes signals into account
  */
-void my_sleep(unsigned s){
+void my_sleep(unsigned s, unsigned ms){
     struct timespec req,
                     rem;
 
     req.tv_sec = s;
-    req.tv_nsec = 0;
+    req.tv_nsec = 1000000 * ms;
 
-    while ((nanosleep(&req, &rem) != 0) && errno == EINTR) {
+    while ((nanosleep(&req, &rem) != 0) && (errno == EINTR)) {
        // We need to loop back to sleep the remainder
         req = rem;
     }
@@ -80,6 +80,7 @@ float cpu_temp(void) {
 
     return systemp;
 }
+
 
 /*
  *  Read Command Line Arguments
@@ -226,9 +227,9 @@ int main(int argc, char **argv)
 
         // For starters, get the fan going
         bcm2835_pwm_set_data(PWM_CHANNEL, MAX_DUTY / 2);
-        my_sleep(1);
+        my_sleep(0, 300);
         bcm2835_pwm_set_data(PWM_CHANNEL, MIN_DUTY);
-        my_sleep(2);
+        my_sleep(0, 500);
         if (verbose) printf("Scale factor : %f\n", SCALE_FACTOR);
         if (verbose) printf("starting\n");
         fflush(stdout);
@@ -239,15 +240,15 @@ int main(int argc, char **argv)
         delay = MAX_DELAY;
         while(1) {
             if (delay >= 5000) {
-                my_sleep((delay - 5000) / 1000);
+                my_sleep((delay - 5000) / 1000, 0);
                 temp = 0.0;
                 for (i = 0 ; i < 5 ; i++) {
                     temp += cpu_temp();
-                    my_sleep(1);
+                    my_sleep(1, 0);
                 }
                 temp /= 5.0;
             } else {
-                my_sleep(delay /1000);
+                my_sleep(delay /1000, 0);
                 temp = cpu_temp();
             }
 
