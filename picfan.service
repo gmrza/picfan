@@ -1,0 +1,21 @@
+[Unit]
+Description=PI C FAN Controller
+After=network.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=1
+User=root
+ExecStart=/usr/local/bin/picfan
+StandardOutput=null
+KillMode=process
+Restart=on-failure
+RestartSec=10s
+ExecReload=/bin/kill -HUP $MAINPID
+ExecStop=/bin/kill -s QUIT $MAINPID
+
+[Install]
+WantedBy=multi-user.target
+Alias=picfan.service
