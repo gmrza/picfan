@@ -45,6 +45,7 @@ int      setting = NORMAL;
 int      max_duty = 400;     // Max duty cycle = RANGE on bcm2835
 int      min_duty;
 int      verbose = 0;
+int      no_exec = 0;
 float    target_temp = 50.0;
 float    speed = 2.0;
 float    scale_factor;
@@ -97,7 +98,7 @@ void read_options(int argc, char ** argv) {
     // put ':' in the starting of the 
     // string so that program can  
     //distinguish between '?' and ':'  
-    while((opt = getopt(argc, argv, ":x:t:d:m:s:a:D:vCQ")) != -1)  {  
+    while((opt = getopt(argc, argv, ":x:t:d:m:s:a:D:vCQn")) != -1)  {  
         switch(opt)  {  
             case 'd':  
                 sscanf(optarg, "%d", &max_delay);
@@ -117,6 +118,9 @@ void read_options(int argc, char ** argv) {
                 break;  
             case 'v':  
                 (verbose) = 1;
+                break;  
+            case 'n':  
+                (no_exec) = 1;
                 break;  
             case 'C':  
                 if (setting == COOLER) {
@@ -192,9 +196,14 @@ void read_config(char * conf_file_name) {
     FILE * c_file;
     char option[256], value[256];
 
-    c_file = fopen(conf_file_name, "r");
+    if (verbose) fprintf(stderr, "Reading config: %s\n", conf_file_name);
+    if(( c_file = fopen(conf_file_name, "r")) == NULL) {
+       return;
+    }
+
     int lineno = 0;
     while (fgets(line, 256, c_file) != NULL) {
+        if (verbose) fprintf(stderr, "%s\n", line);
         lineno++;
         if(line[0] == '#') continue;
 
@@ -226,6 +235,11 @@ void read_config(char * conf_file_name) {
                 attack = 3.0;
                 decay = 0.25;
             }
+        }
+        if (verbose) {
+            fprintf(stderr, "Setting: %d\n", setting);
+            fprintf(stderr, "Attack: %d\n", attack);
+            fprintf(stderr, "Decay: %d\n", decay);
         }
     }
 }
@@ -273,7 +287,10 @@ int main(int argc, char **argv)
     scale_factor = (MAX_DUTY * MAX_DELAY / 2000000.0);
 
     read_options(argc, argv);
-    //read_config(conf_file_name);
+    read_config(conf_file_name);
+    if (no_exec) {
+        exit(0);
+    }
 
     if (setting != CUSTOM)
         target_temp = temps[setting];
