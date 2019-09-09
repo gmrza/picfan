@@ -25,15 +25,17 @@
 #define SCALE_FACTOR scale_factor
 
 // Standard temperature settings
-#define COOLER  0
-#define COOL    1
-#define NORMAL  2
-#define QUIET   3
-#define QUIETER 4
-#define CUSTOM  5
+#define COOLEST  0
+#define COOLER   1
+#define COOL     2
+#define NORMAL   3
+#define QUIET    4
+#define QUIETER  5
+#define QUIETEST 6
+#define CUSTOM   7
 
 
-float    temps[5] = {40.0, 45.0, 50.0, 55.0, 60.0};
+float    temps[7] = {35.0, 40.0, 45.0, 50.0, 55.0, 60.0, 65.0};
 int      setting = NORMAL;
 
 
@@ -45,8 +47,8 @@ float    speed = 2.0;
 float    scale_factor;
 unsigned stopped = 0;
 unsigned max_delay = 5000;
-float    attack = 2.0,
-         decay = 1.0;
+float    attack = 1.0,
+         decay = 0.5;
 
 
 /*
@@ -114,16 +116,23 @@ void read_options(int argc, char ** argv) {
                 (verbose) = 1;
                 break;  
             case 'C':  
+                if (setting == COOLER)
+                    setting = COOLEST;
                 if (setting == COOL)
                     setting = COOLER;
                 else
                     setting = COOL;
                 break;  
+                attack = 2.0;
             case 'Q':  
+                if (setting == QUIETER)
+                    setting = QUIETEST;
                 if (setting == QUIET)
                     setting = QUIETER;
                 else
                     setting = QUIET;
+                attack = 0.5;
+                decay = 0.25;
                 break;  
             case 't':
                 sscanf(optarg, "%f", &target_temp);
@@ -201,7 +210,7 @@ int main(int argc, char **argv)
               i;
     pthread_t child;
 
-    min_duty = (MAX_DUTY / 56 );
+    min_duty = (MAX_DUTY / 40 );
     scale_factor = (MAX_DUTY * MAX_DELAY / 2000000.0);
 
     read_options(argc, argv);
@@ -297,8 +306,7 @@ int main(int argc, char **argv)
                 if (velocity > -0.5)
                     speed -= 1.0;
                 else {
-                    // speed += speed / 20.0 * velocity * decay;
-                    speed += velocity * decay * 2.0 ;
+                    speed += velocity * decay;
                     delay = MAX_DELAY / 2.5;
                 }
             } else if ((distance < 0.0 )) {
