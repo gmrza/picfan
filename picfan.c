@@ -13,6 +13,7 @@
 #include <pthread.h>
 #include <time.h>
 #include <errno.h>
+#include <string.h>
 
 #define PIN RPI_GPIO_P1_12
 
@@ -23,6 +24,7 @@
 #define STATUS_FIFO "/run/fanspeed"
 #define MAX_DELAY max_delay  // milliseconds
 #define SCALE_FACTOR scale_factor
+#define CONF_FILE "/etc/picfan.conf"
 
 // Standard temperature settings
 #define COOLEST  0
@@ -35,6 +37,7 @@
 #define CUSTOM   7
 
 
+char     conf_file_name[] = CONF_FILE;
 float    temps[7] = {35.0, 40.0, 45.0, 50.0, 55.0, 60.0, 65.0};
 int      setting = NORMAL;
 
@@ -116,23 +119,32 @@ void read_options(int argc, char ** argv) {
                 (verbose) = 1;
                 break;  
             case 'C':  
-                if (setting == COOLER)
+                if (setting == COOLER) {
                     setting = COOLEST;
-                if (setting == COOL)
+                    attack = 3.0;
+                    decay = 0.25;
+                } else if (setting == COOL) {
                     setting = COOLER;
-                else
+                    attack = 2.5;
+                } else {
                     setting = COOL;
+                    attack = 2.0;
+                }
                 break;  
-                attack = 2.0;
             case 'Q':  
-                if (setting == QUIETER)
+                if (setting == QUIETER) {
                     setting = QUIETEST;
-                if (setting == QUIET)
+                    attack = 0.25;
+                    decay = 0.25;
+                } else if (setting == QUIET) {
                     setting = QUIETER;
-                else
+                    attack = 0.5;
+                    decay = 0.25;
+                } else {
                     setting = QUIET;
-                attack = 0.5;
-                decay = 0.25;
+                    attack = 0.5;
+                    decay = 0.25;
+                }
                 break;  
             case 't':
                 sscanf(optarg, "%f", &target_temp);
@@ -169,6 +181,53 @@ void read_options(int argc, char ** argv) {
                 break;  
         }  
     }  
+}
+
+
+/*
+ *  Read Config
+ */
+void read_config(char * conf_file_name) {
+    char line[256];
+    FILE * c_file;
+    char option[256], value[256];
+
+    c_file = fopen(conf_file_name, "r");
+    int lineno = 0;
+    while (fgets(line, 256, c_file) != NULL) {
+        lineno++;
+        if(line[0] == '#') continue;
+
+        if(sscanf(line, "%s: %s", option, value) != 2) {
+            fprintf(stderr, "Syntax error, line %d\n", lineno);
+            continue;
+        }
+        if (strcmp(option, "Mode")) {
+            if (strcmp(value, "Quiet")) {
+                setting = QUIET;
+                attack = 0.5;
+                decay = 0.25;
+            } else if (strcmp(value, "Quieter")) {
+                setting = QUIETER;
+                attack = 0.5;
+                decay = 0.25;
+            } else if (strcmp(value, "Quietest")) {
+                setting = QUIETEST;
+                attack = 0.25;
+                decay = 0.25;
+            } else if (strcmp(value, "Cool")) {
+                setting = COOL;
+                attack = 2.0;
+            } else if (strcmp(value, "Cooler")) {
+                setting = COOLER;
+                attack = 2.5;
+            } else if (strcmp(value, "Coolest")) {
+                setting = COOLEST;
+                attack = 3.0;
+                decay = 0.25;
+            }
+        }
+    }
 }
 
 
@@ -214,6 +273,7 @@ int main(int argc, char **argv)
     scale_factor = (MAX_DUTY * MAX_DELAY / 2000000.0);
 
     read_options(argc, argv);
+    //read_config(conf_file_name);
 
     if (setting != CUSTOM)
         target_temp = temps[setting];
@@ -237,9 +297,9 @@ int main(int argc, char **argv)
 
         // For starters, get the fan going
         bcm2835_pwm_set_data(PWM_CHANNEL, MAX_DUTY / 2);
-        my_sleep(0, 300);
-        bcm2835_pwm_set_data(PWM_CHANNEL, MIN_DUTY);
         my_sleep(0, 500);
+        bcm2835_pwm_set_data(PWM_CHANNEL, MIN_DUTY);
+        my_sleep(0, 300);
         if (verbose) printf("Scale factor : %f\n", SCALE_FACTOR);
         if (verbose) printf("starting\n");
         fflush(stdout);
@@ -284,6 +344,7 @@ int main(int argc, char **argv)
             } else if ((distance > 0.0 ) && stopped) {
                 speed = MIN_DUTY;
                 delay = MAX_DELAY / 2;
+                min_count = 0;
             } else if (distance > 0.0) {
                 if (velocity < -0.25)
                     speed += speed / 20.0  * decay / velocity;
@@ -316,21 +377,23 @@ int main(int argc, char **argv)
             if (speed > (float)MAX_DUTY ) {
                 speed = (float)MAX_DUTY;
             }
-            if (speed < (float)MIN_DUTY) {
+            if ((unsigned)speed <= MIN_DUTY) {
                 min_count++;
                 speed = (float)MIN_DUTY;
             } else {
                 min_count = 0;
             }
-            if (min_count >= 10){
-                speed = 0.0;
-                value = 0;
-                stopped = 1;
+            if (min_count >= 10 ) {
+                if ( distance < -4.0 ){
+                     speed = 0.0;
+                     value = 0;
+                     stopped = 1;
+                }
             } else {
                 value = (unsigned)speed;
                 if(stopped) {
                    bcm2835_pwm_set_data(PWM_CHANNEL, MAX_DUTY / 2);
-                   usleep(500000);
+                   my_sleep(0, 300);
                    stopped = 0;
                 }
             }
