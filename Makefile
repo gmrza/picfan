@@ -18,6 +18,8 @@ bcm2835-force:
 	bash ./inst-bcm2835.sh
 
 bcm2835: /usr/local/lib/libbcm2835.a
+
+/usr/local/lib/libbcm2835.a:
 	bash ./inst-bcm2835.sh
 
 clean:
