@@ -68,7 +68,7 @@ void my_sleep(unsigned s, unsigned ms){
     req.tv_sec = s;
     req.tv_nsec = 1000000 * ms;
 
-    while ((nanosleep(&req, &rem) != 0) && (errno == EINTR)) {
+    while ((nanosleep(&req, &rem) != 0) && (errno == EINTR) && !(restart || quit)) {
        // We need to loop back to sleep the remainder
         req = rem;
     }
@@ -211,39 +211,44 @@ void read_config(char * conf_file_name) {
         lineno++;
         if(line[0] == '#') continue;
 
-        if(sscanf(line, "%s: %s", option, value) != 2) {
+        if(sscanf(line, "%s %s", option, value) != 2) {
             fprintf(stderr, "Syntax error, line %d\n", lineno);
             continue;
         }
-        if (strcmp(option, "Mode")) {
-            if (strcmp(value, "Quiet")) {
+        if (!strcmp(option, "Mode:")) {
+            if (!strcmp(value, "Quiet")) {
                 setting = QUIET;
                 attack = 0.5;
                 decay = 0.25;
-            } else if (strcmp(value, "Quieter")) {
+            } else if (!strcmp(value, "Quieter")) {
                 setting = QUIETER;
                 attack = 0.5;
                 decay = 0.25;
-            } else if (strcmp(value, "Quietest")) {
+            } else if (!strcmp(value, "Quietest")) {
                 setting = QUIETEST;
                 attack = 0.25;
                 decay = 0.25;
-            } else if (strcmp(value, "Cool")) {
+            } else if (!strcmp(value, "Cool")) {
                 setting = COOL;
                 attack = 2.0;
-            } else if (strcmp(value, "Cooler")) {
+            } else if (!strcmp(value, "Cooler")) {
                 setting = COOLER;
                 attack = 2.5;
-            } else if (strcmp(value, "Coolest")) {
+            } else if (!strcmp(value, "Coolest")) {
                 setting = COOLEST;
                 attack = 3.0;
                 decay = 0.25;
             }
+        } else if (!strcmp(option, "Target-temp:")) {
+            // TODO: error checking
+            sscanf(value, "%f", &target_temp);
+            target_temp -= 0.5;
         }
         if (verbose) {
             fprintf(stderr, "Setting: %d\n", setting);
-            fprintf(stderr, "Attack: %d\n", attack);
-            fprintf(stderr, "Decay: %d\n", decay);
+            fprintf(stderr, "Attack: %f\n", attack);
+            fprintf(stderr, "Decay: %f\n", decay);
+            fprintf(stderr, "Target: %f\n", target_temp);
         }
     }
 }
