@@ -156,7 +156,6 @@ void read_options(int argc, char ** argv) {
             case 't':
                 sscanf(optarg, "%f", &target_temp);
                 if (verbose) printf("target_temp: %f\n", target_temp);  
-                target_temp -= 0.5;
                 fflush(stdout);
                 setting = CUSTOM;
                 break;  
@@ -238,17 +237,29 @@ void read_config(char * conf_file_name) {
                 setting = COOLEST;
                 attack = 3.0;
                 decay = 0.25;
+            } else if (!strcmp(value, "Normal")) {
+                setting = NORMAL;
+                attack = 1.0;
+                decay = 0.5;
             }
         } else if (!strcmp(option, "Target-temp:")) {
             // TODO: error checking
             sscanf(value, "%f", &target_temp);
-            target_temp -= 0.5;
+        } else if (!strcmp(option, "Attack:")) {
+            // TODO: error checking
+            sscanf(value, "%f", &attack);
+        } else if (!strcmp(option, "Decay:")) {
+            // TODO: error checking
+            sscanf(value, "%f", &decay);
+        } else if (!strcmp(option, "Delay:")) {
+            sscanf(value, "%d", &max_delay);
         }
         if (verbose) {
             fprintf(stderr, "Setting: %d\n", setting);
             fprintf(stderr, "Attack: %f\n", attack);
             fprintf(stderr, "Decay: %f\n", decay);
             fprintf(stderr, "Target: %f\n", target_temp);
+            fprintf(stderr, "Delay: %f\n", max_delay);
         }
     }
 }
@@ -332,7 +343,7 @@ int main(int argc, char **argv)
 
         while (!restart && !quit) {
             if (setting != CUSTOM)
-                target_temp = temps[setting] -0.5;
+                target_temp = temps[setting] ;
             if (verbose) fprintf(stderr, "Target temperature: %f\n", target_temp);
 
             if (pthread_create(&child, NULL, &write_status, NULL) != 0) {
