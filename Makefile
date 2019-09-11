@@ -32,6 +32,6 @@ install-picfan:
 
 install:
 	install -m 500 -o root -g bin picfan $(BINDIR)
-	install -m 500 -o root -g root picfan.service /lib/systemd/system/
+	install -m 400 -o root -g root picfan.service /lib/systemd/system/
 	systemctl enable picfan.service
 	systemctl start picfan.service
