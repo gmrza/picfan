@@ -182,7 +182,13 @@ void read_options(int argc, char ** argv) {
             case '?':  
                 printf("Usage %s [OPTIONS]\n", argv[0]);
                 printf("  -v          : verbose\n");
-                // ":x:t:d:m:s:a:D:v"
+                printf("  -x <range>  : BCM2835 PWM range - default of 400\n");
+                printf("  -t <temp>   : target temperature (Celcius) - defaults to 50.0\n");
+                printf("  -d <delay>  : polling delay (seconds) - defaults to 5\n");
+                printf("  -m <duty>   : minimum duty cycle\n");
+                printf("  -s <scale>  : scale factor\n");
+                printf("  -a <attack> : attack factor when increasing speed\n");
+                // ":x:t:d:m:s:a:D:v"":x:t:d:m:s:a:D:vCQn"
                 fflush(stdout);
                 exit(2);
                 break;  
