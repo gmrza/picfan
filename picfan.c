@@ -15,6 +15,8 @@
 #include <errno.h>
 #include <string.h>
 #include <signal.h>
+#include <syslog.h>
+#include <libgen.h>
 
 #define PIN RPI_GPIO_P1_12
 
@@ -72,6 +74,21 @@ void my_sleep(unsigned s, unsigned ms){
        // We need to loop back to sleep the remainder
         req = rem;
     }
+}
+
+/*
+ *  Enable logging
+ */
+void open_logs(char * ident) {
+    openlog(ident, LOG_PID, LOG_DAEMON | LOG_SYSLOG);
+}
+
+
+/*
+ * Close system log
+ */
+void close_logs(void) {
+    closelog();
 }
 
 
@@ -341,11 +358,19 @@ int main(int argc, char **argv)
         fprintf(stderr, "Error setting up signal handler\n");
         exit(2);
     }
+    open_logs(basename(argv[0]));
 
     read_options(argc, argv);
 
+    syslog(LOG_INFO, "Starting Pi Fan Controller");
+
     quit = 0;
+    restart = 0;
     while (!quit) {
+        if (restart) {
+            syslog(LOG_INFO, "Restarting Pi Fan Controller");
+        }
+
         restart = 0;
         read_config(conf_file_name);
         if (no_exec) {
@@ -481,6 +506,9 @@ int main(int argc, char **argv)
             }
         }
     }
+
+    syslog(LOG_INFO, "Exiting Pi Fan Controller");
+    close_logs();
 
     bcm2835_close();
     return 0;
