@@ -188,6 +188,11 @@ void read_options(int argc, char ** argv) {
                 printf("  -m <duty>   : minimum duty cycle\n");
                 printf("  -s <scale>  : scale factor\n");
                 printf("  -a <attack> : attack factor when increasing speed\n");
+                printf("  -D <decay>  : decay factor when decreasing speed\n");
+                printf("  -v          : verbose (print debug messages)\n");
+                printf("  -C          : Cool (repeat up to 3 times)\n");
+                printf("  -Q          : Quiet (repeat up to 3 times)\n");
+                printf("  -n          : Process command line options and exit\n");
                 // ":x:t:d:m:s:a:D:v"":x:t:d:m:s:a:D:vCQn"
                 fflush(stdout);
                 exit(2);
