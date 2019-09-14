@@ -320,19 +320,21 @@ void * write_status(void * arg) {
  * Signal Handler
  */
 static void catcher(int signo){
+    fprintf(stderr, "caught %d\n", signo);
     switch (signo){
         case SIGHUP:
+            fprintf(stderr, "caught SIGHUP %d\n", signo);
             restart = 1;
             break;
         case SIGQUIT:
+            fprintf(stderr, "caught SIGQUIT%d\n", signo);
             quit = 1;
             break;
     }
 }
 
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
     float     temp,
               dif,
               oldtemp,
@@ -364,152 +366,154 @@ int main(int argc, char **argv)
 
     syslog(LOG_INFO, "Starting Pi Fan Controller");
 
+    if (pthread_create(&child, NULL, &write_status, NULL) != 0) {
+        fprintf(stderr, "Cannot create thread");
+        exit(2);
+    }
+
     quit = 0;
     restart = 0;
-    while (!quit) {
+    while ( ! quit ) {
         if (restart) {
             syslog(LOG_INFO, "Restarting Pi Fan Controller");
         }
-
+        printf("restart: %d\n", restart);
         restart = 0;
         read_config(conf_file_name);
         if (no_exec) {
             exit(0);
         }
 
-        while (!restart && !quit) {
-            if (setting != CUSTOM)
-                target_temp = temps[setting] ;
-            if (verbose) fprintf(stderr, "Target temperature: %f\n", target_temp);
+        if (setting != CUSTOM)
+            target_temp = temps[setting] ;
+        if (verbose) fprintf(stderr, "Target temperature: %f\n", target_temp);
 
-            if (pthread_create(&child, NULL, &write_status, NULL) != 0) {
-                fprintf(stderr, "Cannot create thread");
-                exit(2);
+        if (!bcm2835_init()) {
+            syslog(LOG_ERR, "Cannot open bcm2835");
+        }
+
+        // Set the output pin to Alt Fun 5, to allow PWM channel 0 to be output there
+        bcm2835_gpio_fsel(PIN, BCM2835_GPIO_FSEL_ALT5);
+    
+        bcm2835_pwm_set_clock(2); // set divider to 2
+        bcm2835_pwm_set_mode(PWM_CHANNEL, 1, 1); // mark-space
+        bcm2835_pwm_set_range(PWM_CHANNEL, MAX_DUTY); // range 
+
+        // For starters, get the fan going
+        bcm2835_pwm_set_data(PWM_CHANNEL, MAX_DUTY / 2);
+        my_sleep(0, 500);
+        bcm2835_pwm_set_data(PWM_CHANNEL, MIN_DUTY);
+        my_sleep(0, 300);
+        if (verbose) printf("Scale factor : %f\n", SCALE_FACTOR);
+        if (verbose) printf("starting\n");
+        fflush(stdout);
+
+        oldtemp = TARGET_TEMP;
+        speed = (float)MIN_DUTY;
+        stopped = 0;
+        delay = MAX_DELAY;
+        while( !(restart || quit) ) {
+            if (delay >= 5000) {
+                my_sleep((delay - 5000) / 1000, 0);
+                temp = 0.0;
+                for (i = 0 ; i < 5 ; i++) {
+                    temp += cpu_temp();
+                    my_sleep(1, 0);
+                }
+                temp /= 5.0;
             } else {
-                if (!bcm2835_init())
-                    return 1;
-                // Set the output pin to Alt Fun 5, to allow PWM channel 0 to be output there
-                bcm2835_gpio_fsel(PIN, BCM2835_GPIO_FSEL_ALT5);
-            
-                bcm2835_pwm_set_clock(2); // set divider to 2
-                bcm2835_pwm_set_mode(PWM_CHANNEL, 1, 1); // mark-space
-                bcm2835_pwm_set_range(PWM_CHANNEL, MAX_DUTY); // range 
+                my_sleep(delay /1000, 0);
+                temp = cpu_temp();
+            }
 
-                // For starters, get the fan going
-                bcm2835_pwm_set_data(PWM_CHANNEL, MAX_DUTY / 2);
-                my_sleep(0, 500);
-                bcm2835_pwm_set_data(PWM_CHANNEL, MIN_DUTY);
-                my_sleep(0, 300);
-                if (verbose) printf("Scale factor : %f\n", SCALE_FACTOR);
-                if (verbose) printf("starting\n");
-                fflush(stdout);
+            velocity = (temp - oldtemp) / (delay / 1000 );
+            distance = temp - TARGET_TEMP;
+            oldtemp = temp;
+            direction = velocity * distance;
 
-                oldtemp = TARGET_TEMP;
-                speed = (float)MIN_DUTY;
-                stopped = 0;
+            sign = (distance >= 0.0) ? 1.0 : -1.0;
+
+            if (distance > 2.0 ) {
+                delay = MAX_DELAY / 5;
+            } else if ((distance < 0.5 ) && (distance > -1.5)) {
+                delay = MAX_DELAY * 2;
+            } else {
                 delay = MAX_DELAY;
-                while(1) {
-                    if (delay >= 5000) {
-                        my_sleep((delay - 5000) / 1000, 0);
-                        temp = 0.0;
-                        for (i = 0 ; i < 5 ; i++) {
-                            temp += cpu_temp();
-                            my_sleep(1, 0);
-                        }
-                        temp /= 5.0;
-                    } else {
-                        my_sleep(delay /1000, 0);
-                        temp = cpu_temp();
-                    }
+            }
+            
+            if (verbose) fprintf(stderr, "v: %f", velocity);
+            if ((distance < 0.0) && stopped ) {
+                speed = 0.0;
+                delay = MAX_DELAY * 2;
+            } else if ((distance > 0.0 ) && stopped) {
+                speed = MIN_DUTY;
+                delay = MAX_DELAY / 2;
+                min_count = 0;
+            } else if (distance > 0.0) {
+                if (velocity < -0.25)
+                    speed += speed / 20.0  * decay / velocity;
+                if (velocity < 0.0) {
+                    speed -= 1.0;
+                } else if (velocity > 0.25) {
+                    speed += distance * distance * attack * velocity ;
+                } else if (distance < 5.0){
+                    if (distance > 2.0) speed += 1.0;
+                    if (distance > 1.0) speed += 1.0;
+                    speed += 1.0 ;
+                } else
+                    speed += distance * distance * attack;
+            } else if ((distance < 0.0) && (velocity > 0.0)) {
+                speed -= distance * velocity * decay;
+            } else if ((distance < 0.0) && (velocity < 0.0)) {
+                delay = MAX_DELAY / 2.5;
+                if (distance < -1.5) speed -= 1.0;
+                if (distance < -2.5) speed -= 1.0;
+                if (velocity > -0.5)
+                    speed -= 1.0;
+                else {
+                    speed += velocity * decay;
+                    delay = MAX_DELAY / 2.5;
+                }
+            } else if ((distance < 0.0 )) {
+                speed -= distance * distance * decay;
+            }
 
-                    velocity = (temp - oldtemp) / (delay / 1000 );
-                    distance = temp - TARGET_TEMP;
-                    oldtemp = temp;
-                    direction = velocity * distance;
-
-                    sign = (distance >= 0.0) ? 1.0 : -1.0;
-
-                    if (distance > 2.0 ) {
-                        delay = MAX_DELAY / 5;
-                    } else if ((distance < 0.5 ) && (distance > -1.5)) {
-                        delay = MAX_DELAY * 2;
-                    } else {
-                        delay = MAX_DELAY;
-                    }
-                    
-                    if (verbose) fprintf(stderr, "v: %f", velocity);
-                    if ((distance < 0.0) && stopped ) {
-                        speed = 0.0;
-                        delay = MAX_DELAY * 2;
-                    } else if ((distance > 0.0 ) && stopped) {
-                        speed = MIN_DUTY;
-                        delay = MAX_DELAY / 2;
-                        min_count = 0;
-                    } else if (distance > 0.0) {
-                        if (velocity < -0.25)
-                            speed += speed / 20.0  * decay / velocity;
-                        if (velocity < 0.0) {
-                            speed -= 1.0;
-                        } else if (velocity > 0.25) {
-                            speed += distance * distance * attack * velocity ;
-                        } else if (distance < 5.0){
-                            if (distance > 2.0) speed += 1.0;
-                            if (distance > 1.0) speed += 1.0;
-                            speed += 1.0 ;
-                        } else
-                            speed += distance * distance * attack;
-                    } else if ((distance < 0.0) && (velocity > 0.0)) {
-                        speed -= distance * velocity * decay;
-                    } else if ((distance < 0.0) && (velocity < 0.0)) {
-                        delay = MAX_DELAY / 2.5;
-                        if (distance < -1.5) speed -= 1.0;
-                        if (distance < -2.5) speed -= 1.0;
-                        if (velocity > -0.5)
-                            speed -= 1.0;
-                        else {
-                            speed += velocity * decay;
-                            delay = MAX_DELAY / 2.5;
-                        }
-                    } else if ((distance < 0.0 )) {
-                        speed -= distance * distance * decay;
-                    }
-
-                    if (speed > (float)MAX_DUTY ) {
-                        speed = (float)MAX_DUTY;
-                    }
-                    if ((unsigned)speed <= MIN_DUTY) {
-                        min_count++;
-                        speed = (float)MIN_DUTY;
-                    } else {
-                        min_count = 0;
-                    }
-                    if (min_count >= 10 ) {
-                        if ( distance < -4.0 ){
-                             speed = 0.0;
-                             value = 0;
-                             stopped = 1;
-                        }
-                    } else {
-                        value = (unsigned)speed;
-                        if(stopped) {
-                           bcm2835_pwm_set_data(PWM_CHANNEL, MAX_DUTY / 2);
-                           my_sleep(0, 300);
-                           stopped = 0;
-                        }
-                    }
-
-                    if (verbose) printf("fan: %d, temp: %f\n", value, temp);
-                    fflush(stdout);
-                    bcm2835_pwm_set_data(PWM_CHANNEL, value);
-
+            if (speed > (float)MAX_DUTY ) {
+                speed = (float)MAX_DUTY;
+            }
+            if ((unsigned)speed <= MIN_DUTY) {
+                min_count++;
+                speed = (float)MIN_DUTY;
+            } else {
+                min_count = 0;
+            }
+            if (min_count >= 10 ) {
+                if ( distance < -4.0 ){
+                     speed = 0.0;
+                     value = 0;
+                     stopped = 1;
+                }
+            } else {
+                value = (unsigned)speed;
+                if(stopped) {
+                   bcm2835_pwm_set_data(PWM_CHANNEL, MAX_DUTY / 2);
+                   my_sleep(0, 300);
+                   stopped = 0;
                 }
             }
+
+            if (verbose) printf("fan: %d, temp: %f\n", value, temp);
+            fflush(stdout);
+            bcm2835_pwm_set_data(PWM_CHANNEL, value);
+
         }
+        // close bcm2835
+        bcm2835_close();
+
     }
 
     syslog(LOG_INFO, "Exiting Pi Fan Controller");
     close_logs();
 
-    bcm2835_close();
     return 0;
 }
