@@ -282,13 +282,11 @@ void read_config(char * conf_file_name) {
         } else if (!strcmp(option, "Delay:")) {
             sscanf(value, "%d", &max_delay);
         }
-        if (verbose) {
-            fprintf(stderr, "Setting: %d\n", setting);
-            fprintf(stderr, "Attack: %f\n", attack);
-            fprintf(stderr, "Decay: %f\n", decay);
-            fprintf(stderr, "Target: %f\n", target_temp);
-            fprintf(stderr, "Delay: %f\n", max_delay);
-        }
+        syslog(LOG_INFO, "Setting: %d\n", setting);
+        syslog(LOG_INFO, "Attack: %f\n", attack);
+        syslog(LOG_INFO, "Decay: %f\n", decay);
+        syslog(LOG_INFO, "Target temperature: %f\n", target_temp);
+        syslog(LOG_INFO, "Delay: %d\n", max_delay);
     }
 }
 
