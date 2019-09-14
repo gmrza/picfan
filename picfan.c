@@ -87,11 +87,11 @@ void make_pidfile(char * pidfile_name){
     FILE *  pidfile;
     pid_t   my_pid;
 
-    printf("%s\n", pidfile_name);
-    pidfile = fopen(pidfile_name, "w");
-    my_pid = getpid();
-    fprintf(pidfile, "%lu", my_pid);
-    fclose(pidfile);
+    if ((pidfile = fopen(pidfile_name, "w")) != NULL) {
+        my_pid = getpid();
+        fprintf(pidfile, "%lu\n", my_pid);
+        fclose(pidfile);
+    }
 }
 
 
@@ -120,12 +120,16 @@ float cpu_temp(void) {
     FILE *thermal;
     int n;
 
-    thermal = fopen("/sys/class/thermal/thermal_zone0/temp","r");
-    n = fscanf(thermal,"%f",&millideg);
-    fclose(thermal);
-    systemp = millideg / 1000.0;
+    if((thermal = fopen("/sys/class/thermal/thermal_zone0/temp","r")) != NULL) {
+        n = fscanf(thermal,"%f",&millideg);
+        fclose(thermal);
+        systemp = millideg / 1000.0;
 
-    return systemp;
+        return systemp;
+    } else {
+        syslog(LOG_ERR, "Cannot read system temperature");
+        exit(2);
+    }
 }
 
 
@@ -249,6 +253,7 @@ void read_config(char * conf_file_name) {
 
     if (verbose) fprintf(stderr, "Reading config: %s\n", conf_file_name);
     if(( c_file = fopen(conf_file_name, "r")) == NULL) {
+       // Just return if we can't open the file
        return;
     }
 
