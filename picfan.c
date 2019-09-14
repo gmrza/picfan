@@ -318,14 +318,11 @@ void * write_status(void * arg) {
  * Signal Handler
  */
 static void catcher(int signo){
-    fprintf(stderr, "caught %d\n", signo);
     switch (signo){
         case SIGHUP:
-            fprintf(stderr, "caught SIGHUP %d\n", signo);
             restart = 1;
             break;
         case SIGQUIT:
-            fprintf(stderr, "caught SIGQUIT%d\n", signo);
             quit = 1;
             break;
     }
@@ -375,7 +372,6 @@ int main(int argc, char **argv) {
         if (restart) {
             syslog(LOG_INFO, "Restarting Pi Fan Controller");
         }
-        printf("restart: %d\n", restart);
         restart = 0;
         read_config(conf_file_name);
         if (no_exec) {
