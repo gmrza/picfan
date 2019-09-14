@@ -80,7 +80,7 @@ void my_sleep(unsigned s, unsigned ms){
  *  Enable logging
  */
 void open_logs(char * ident) {
-    openlog(ident, LOG_PID, LOG_DAEMON | LOG_SYSLOG);
+    openlog(ident, LOG_PID, LOG_DAEMON);
 }
 
 
