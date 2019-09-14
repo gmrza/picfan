@@ -1,10 +1,10 @@
 /*****************************************************
  * PI Fan Controller
  *****************************************************
+ *
  * Author: Geoff Rehmet
  * Copyright (C) 2019 Geoff Rehmet
  *
- * $Id$ 
  */
 
 #include <bcm2835.h>
@@ -79,6 +79,22 @@ void my_sleep(unsigned s, unsigned ms){
         req = rem;
     }
 }
+
+/*
+ * make_pidfile() - Create pid file in /run
+ */ 
+void make_pidfile(char * pidfile_name){
+    FILE *  pidfile;
+    pid_t   my_pid;
+
+    printf("%s\n", pidfile_name);
+    pidfile = fopen(pidfile_name, "w");
+    my_pid = getpid();
+    fprintf(pidfile, "%lu", my_pid);
+    fclose(pidfile);
+}
+
+
 
 /*
  *  Enable logging
@@ -244,6 +260,7 @@ void read_config(char * conf_file_name) {
 
         if(sscanf(line, "%s %s", option, value) != 2) {
             fprintf(stderr, "Syntax error, line %d\n", lineno);
+            syslog(LOG_ERR, "Configuration syntax error, line %d\n", lineno);
             continue;
         }
         if (!strcmp(option, "Mode:")) {
@@ -292,6 +309,7 @@ void read_config(char * conf_file_name) {
         syslog(LOG_INFO, "Target temperature: %f\n", target_temp);
         syslog(LOG_INFO, "Delay: %d\n", max_delay);
     }
+    fclose(c_file);
 }
 
 
@@ -346,6 +364,10 @@ int main(int argc, char **argv) {
               value,
               i;
     pthread_t child;
+    char      pid_dir[256] = "/run/";
+
+
+    make_pidfile(strcat(pid_dir, basename(argv[0])));
 
     min_duty = (MAX_DUTY / 40 );
     scale_factor = (MAX_DUTY * MAX_DELAY / 2000000.0);
@@ -353,10 +375,12 @@ int main(int argc, char **argv) {
     // Set up signal handlers
     if (signal(SIGHUP, catcher) == SIG_ERR) {
         fprintf(stderr, "Error setting up signal handler\n");
+        syslog(LOG_ERR, "Error setting up signal handler\n");
         exit(2);
     }
     if (signal(SIGQUIT, catcher) == SIG_ERR) {
         fprintf(stderr, "Error setting up signal handler\n");
+        syslog(LOG_ERR, "Error setting up signal handler\n");
         exit(2);
     }
     open_logs(basename(argv[0]));
@@ -367,6 +391,7 @@ int main(int argc, char **argv) {
 
     if (pthread_create(&child, NULL, &write_status, NULL) != 0) {
         fprintf(stderr, "Cannot create thread");
+        syslog(LOG_ERR, "Cannot create thread");
         exit(2);
     }
 
