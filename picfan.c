@@ -1,6 +1,10 @@
 /*****************************************************
  * PI Fan Controller
  *****************************************************
+ * Author: Geoff Rehmet
+ * Copyright (C) 2019 Geoff Rehmet
+ *
+ * $Id$ 
  */
 
 #include <bcm2835.h>
