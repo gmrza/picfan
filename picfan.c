@@ -396,7 +396,7 @@ int main(int argc, char **argv) {
 
     if (pthread_create(&child, NULL, &write_status, NULL) != 0) {
         fprintf(stderr, "Cannot create thread");
-        syslog(LOG_ERR, "Cannot create thread");
+        syslog(LOG_ERR, "Cannot create thread - exiting");
         exit(2);
     }
 
@@ -417,7 +417,9 @@ int main(int argc, char **argv) {
         if (verbose) fprintf(stderr, "Target temperature: %f\n", target_temp);
 
         if (!bcm2835_init()) {
-            syslog(LOG_ERR, "Cannot open bcm2835");
+            syslog(LOG_ERR, "Cannot open bcm2835 - exiting");
+            fprintf(stderr, "Cannot open bcm2835\n");
+            exit(2);
         }
 
         // Set the output pin to Alt Fun 5, to allow PWM channel 0 to be output there
