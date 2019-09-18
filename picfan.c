@@ -127,7 +127,7 @@ float cpu_temp(void) {
 
         return systemp;
     } else {
-        syslog(LOG_ERR, "Cannot read system temperature");
+        syslog(LOG_ERR, "Cannot read system temperature - exiting");
         exit(2);
     }
 }
@@ -432,8 +432,8 @@ int main(int argc, char **argv) {
         my_sleep(0, 500);
         bcm2835_pwm_set_data(PWM_CHANNEL, MIN_DUTY);
         my_sleep(0, 300);
-        if (verbose) printf("Scale factor : %f\n", SCALE_FACTOR);
-        if (verbose) printf("starting\n");
+        if (verbose) fprintf(stderr, "Scale factor : %f\n", SCALE_FACTOR);
+        if (verbose) fprintf(stderr, "starting\n");
         fflush(stdout);
 
         oldtemp = TARGET_TEMP;
