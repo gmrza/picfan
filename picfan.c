@@ -45,7 +45,11 @@
 
 
 char     conf_file_name[] = CONF_FILE;
-float    temps[7] = {35.0, 40.0, 45.0, 50.0, 55.0, 60.0, 65.0};
+float    temps[8] = {35.0, 40.0, 45.0, 50.0, 55.0, 60.0, 65.0, 0.0};
+char     modes[8][15] = {"COOLEST", "COOLER", "COOL", "NORMAL",
+                         "QUIET", "QUIETER", "QUIETEST",
+                         "CUSTOM"};
+char     load_action[2][15] = {"Starting", "Restarting"};
 int      setting = NORMAL;
 
 
@@ -101,6 +105,7 @@ void make_pidfile(char * pidfile_name){
  */
 void open_logs(char * ident) {
     openlog(ident, LOG_PID, LOG_DAEMON);
+    syslog(LOG_INFO, "Pi Fan Controller initialising");
 }
 
 
@@ -308,11 +313,13 @@ void read_config(char * conf_file_name) {
         } else if (!strcmp(option, "Delay:")) {
             sscanf(value, "%d", &max_delay);
         }
-        syslog(LOG_INFO, "Setting: %d\n", setting);
-        syslog(LOG_INFO, "Attack: %f\n", attack);
-        syslog(LOG_INFO, "Decay: %f\n", decay);
-        syslog(LOG_INFO, "Target temperature: %f\n", target_temp);
-        syslog(LOG_INFO, "Delay: %d\n", max_delay);
+        if (setting != CUSTOM) 
+            target_temp = temps[setting];
+        syslog(LOG_INFO, "Setting: %s", modes[setting]);
+        syslog(LOG_INFO, "Attack: %f", attack);
+        syslog(LOG_INFO, "Decay: %f", decay);
+        syslog(LOG_INFO, "Target temperature: %f", target_temp);
+        syslog(LOG_INFO, "Delay: %d", max_delay);
     }
     fclose(c_file);
 }
@@ -392,8 +399,6 @@ int main(int argc, char **argv) {
 
     read_options(argc, argv);
 
-    syslog(LOG_INFO, "Starting Pi Fan Controller");
-
     if (pthread_create(&child, NULL, &write_status, NULL) != 0) {
         fprintf(stderr, "Cannot create thread");
         syslog(LOG_ERR, "Cannot create thread - exiting");
@@ -403,11 +408,9 @@ int main(int argc, char **argv) {
     quit = 0;
     restart = 0;
     while ( ! quit ) {
-        if (restart) {
-            syslog(LOG_INFO, "Restarting Pi Fan Controller");
-        }
-        restart = 0;
         read_config(conf_file_name);
+        syslog(LOG_INFO, "%s Pi Fan Controller. Mode: %s", load_action[restart], modes[setting]);
+        restart = 0;
         if (no_exec) {
             exit(0);
         }
