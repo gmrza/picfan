@@ -1,3 +1,4 @@
+#Makefile for picfan
 CC=gcc
 CFLAGS=-I.
 DEPS = 
