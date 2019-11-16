@@ -548,6 +548,7 @@ int main(int argc, char **argv) {
                     if (distance > 2.0) speed += 1.0;
                     if (distance > 1.0) speed += 1.0;
                     speed += 1.0 ;
+                    if (new_load - old_load > 0.07) speed += MIN_DUTY * 3.0;
                 } else
                     speed += distance * distance * attack * (new_load > old_load?2.0:1.0);
             } else if ((distance < 0.0) && (velocity > 0.0)) {
