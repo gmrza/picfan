@@ -22,6 +22,11 @@
 #include <syslog.h>
 #include <libgen.h>
 
+
+// Required for CPU load measurement
+#define STAT "/proc/stat"
+#define IDLE 3
+
 #define PIN RPI_GPIO_P1_12
 
 #define PWM_CHANNEL 0
@@ -66,6 +71,48 @@ unsigned stopped = 0;
 unsigned max_delay = 5000;
 float    attack = 1.0,
          decay = 0.5;
+
+/* for CPU load measurement */
+static long cpu_stat[10];
+static FILE * proc_stat;
+
+
+/*
+ * Initialise CPU load monitoring
+ */
+void cpu_init(void) {
+    char scrap[10];
+    int i;
+
+    proc_stat = fopen(STAT, "r");
+
+    fscanf (proc_stat, "%s %ld %ld %ld %ld %ld %ld %ld %ld %ld %ld",scrap,&cpu_stat[0],&cpu_stat[1],&cpu_stat[2],&cpu_stat[3],&cpu_stat[4],&cpu_stat[5],&cpu_stat[6],&cpu_stat[7],&cpu_stat[8],&cpu_stat[9]);
+    fclose(proc_stat);
+}
+
+
+/*
+ * Get CPU load
+ */
+float cpu_load(void) {
+    char scrap[10];
+    int i;
+    long idle, total;
+    long new_stat[10];
+
+    proc_stat = fopen(STAT, "r");
+    fscanf (proc_stat, "%s %ld %ld %ld %ld %ld %ld %ld %ld %ld %ld",scrap,&new_stat[0],&new_stat[1],
+        &new_stat[2],&new_stat[3],&new_stat[4],&new_stat[5],&new_stat[6],&new_stat[7],&new_stat[8],&new_stat[9]);
+    idle = new_stat[IDLE] - cpu_stat[IDLE];
+    total = 0;
+    for(i = 0; i< 10; i++){
+        total += new_stat[i] - cpu_stat[i];
+        cpu_stat[i] = new_stat[i];
+    }
+    fclose(proc_stat);
+    return 1.0 - (float)idle / (float)total;
+}
+
 
 
 /*
@@ -370,7 +417,9 @@ int main(int argc, char **argv) {
               distance,
               velocity,
               direction,
-              sign;
+              sign,
+              new_load,
+              old_load;
     unsigned  min_count = 0,
               delay = MAX_DELAY,
               value,
@@ -432,6 +481,9 @@ int main(int argc, char **argv) {
         bcm2835_pwm_set_mode(PWM_CHANNEL, 1, 1); // mark-space
         bcm2835_pwm_set_range(PWM_CHANNEL, MAX_DUTY); // range 
 
+        /* Initialise CPU load measurement */
+        cpu_init();
+
         // For starters, get the fan going
         bcm2835_pwm_set_data(PWM_CHANNEL, MAX_DUTY / 2);
         my_sleep(0, 500);
@@ -443,6 +495,7 @@ int main(int argc, char **argv) {
 
         oldtemp = TARGET_TEMP;
         speed = (float)MIN_DUTY;
+        new_load = cpu_load();
         stopped = 0;
         delay = MAX_DELAY;
         while( !(restart || quit) ) {
@@ -458,6 +511,8 @@ int main(int argc, char **argv) {
                 my_sleep(delay /1000, 0);
                 temp = cpu_temp();
             }
+            old_load = new_load;
+            new_load = cpu_load();
 
             velocity = (temp - oldtemp) / (delay / 1000 );
             distance = temp - TARGET_TEMP;
@@ -494,7 +549,7 @@ int main(int argc, char **argv) {
                     if (distance > 1.0) speed += 1.0;
                     speed += 1.0 ;
                 } else
-                    speed += distance * distance * attack;
+                    speed += distance * distance * attack * (new_load > old_load?2.0:1.0);
             } else if ((distance < 0.0) && (velocity > 0.0)) {
                 speed -= distance * velocity * decay;
             } else if ((distance < 0.0) && (velocity < 0.0)) {
@@ -504,7 +559,7 @@ int main(int argc, char **argv) {
                 if (velocity > -0.5)
                     speed -= 1.0;
                 else {
-                    speed += velocity * decay;
+                    speed += velocity * decay * (new_load < old_load?2.0:1.0 );
                     delay = MAX_DELAY / 2.5;
                 }
             } else if ((distance < 0.0 )) {
