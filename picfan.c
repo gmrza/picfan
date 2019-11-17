@@ -542,21 +542,39 @@ int main(int argc, char **argv) {
                     speed += speed / 20.0  * decay / velocity;
                 if (velocity < 0.0) {
                     speed -= 1.0;
+                } else if (new_load - old_load > 0.2) {
+                    speed += MIN_DUTY * 3.0;
                 } else if (velocity > 0.25) {
+                    if (verbose) fprintf(stderr, "Velocity > 0.25\n");
                     speed += distance * distance * attack * velocity ;
                 } else if (distance < 5.0){
                     if (distance > 2.0) speed += 1.0;
                     if (distance > 1.0) speed += 1.0;
                     speed += 1.0 ;
-                    if (new_load - old_load > 0.07) speed += MIN_DUTY * 3.0;
-                } else
+                    // These lines don't seem to be having the desired effect
+                    // if ( (distance > 1.0) && (new_load - old_load > 0.10)) speed += MIN_DUTY * 2.0; 
+                    // else if(new_load - old_load > 0.25) speed += MIN_DUTY * 3.0; /* can probably remove */
+                    if (verbose) fprintf(stderr, "distance < 5.0 %f new speed %f\n", distance, speed);
+                } else {
+                    if (verbose) fprintf(stderr, "larger increment\n");
                     speed += distance * distance * attack * (new_load > old_load?2.0:1.0);
-            } else if ((distance < 0.0) && (velocity > 0.0)) {
+                    if(new_load - old_load > 0.25) speed += MIN_DUTY * 3.0;
+                }
+            } else if ((distance < 0.0) && (velocity >= 0.0)) {
+                if (verbose) fprintf(stderr, "Distance < 0 and velocity > 0\n");
                 speed -= distance * velocity * decay;
+                if ((distance < -2.0) && (new_load < 0.10))
+                    speed = speed * 0.8;
             } else if ((distance < 0.0) && (velocity < 0.0)) {
                 delay = MAX_DELAY / 2.5;
-                if (distance < -1.5) speed -= 1.0;
-                if (distance < -2.5) speed -= 1.0;
+                if (distance < -1.5) {
+                    speed -= 1.0;
+                    if (new_load <= old_load) speed = speed * 0.9;
+                }
+                if (distance < -2.5) {
+                    speed -= 1.0;
+                    if (new_load <= old_load) speed = speed * 0.9;
+                }
                 if (velocity > -0.5)
                     speed -= 1.0;
                 else {
