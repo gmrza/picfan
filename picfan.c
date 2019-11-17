@@ -73,8 +73,8 @@ float    attack = 1.0,
          decay = 0.5;
 
 /* for CPU load measurement */
-static long cpu_stat[10];
-static FILE * proc_stat;
+long cpu_stat[10];
+FILE * proc_stat;
 
 
 /*
@@ -351,14 +351,20 @@ void read_config(char * conf_file_name) {
         } else if (!strcmp(option, "Target-temp:")) {
             // TODO: error checking
             sscanf(value, "%f", &target_temp);
+            setting = CUSTOM;
         } else if (!strcmp(option, "Attack:")) {
             // TODO: error checking
             sscanf(value, "%f", &attack);
+            setting = CUSTOM;
         } else if (!strcmp(option, "Decay:")) {
             // TODO: error checking
             sscanf(value, "%f", &decay);
+            setting = CUSTOM;
         } else if (!strcmp(option, "Delay:")) {
             sscanf(value, "%d", &max_delay);
+            /* New convert to ms */
+            max_delay *= 1000;
+            setting = CUSTOM;
         }
         if (setting != CUSTOM) 
             target_temp = temps[setting];
@@ -542,7 +548,7 @@ int main(int argc, char **argv) {
                     speed += speed / 20.0  * decay / velocity;
                 if (velocity < 0.0) {
                     speed -= 1.0;
-                } else if (new_load - old_load > 0.2) {
+                } else if (new_load - old_load > 0.4) {
                     speed += MIN_DUTY * 3.0;
                 } else if (velocity > 0.25) {
                     if (verbose) fprintf(stderr, "Velocity > 0.25\n");
