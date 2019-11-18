@@ -539,6 +539,10 @@ int main(int argc, char **argv) {
             if ((distance < 0.0) && stopped ) {
                 speed = 0.0;
                 delay = MAX_DELAY * 2;
+            } else if (velocity < -1.0){ 
+                speed = speed * 0.8;
+            } else if (velocity > 1.5){ 
+                speed = speed * velocity;
             } else if ((distance > 0.0 ) && stopped) {
                 speed = MIN_DUTY;
                 delay = MAX_DELAY / 2;
