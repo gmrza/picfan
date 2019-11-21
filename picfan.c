@@ -21,6 +21,7 @@
 #include <signal.h>
 #include <syslog.h>
 #include <libgen.h>
+#include <math.h>
 
 
 // Required for CPU load measurement
@@ -68,7 +69,7 @@ float    target_temp = 50.0;
 float    speed = 2.0;
 float    scale_factor;
 unsigned stopped = 0;
-unsigned max_delay = 5000;
+unsigned max_delay = 10000;
 float    attack = 1.0,
          decay = 0.5;
 
@@ -425,7 +426,8 @@ int main(int argc, char **argv) {
               direction,
               sign,
               new_load,
-              old_load;
+              old_load,
+              displacement;
     unsigned  min_count = 0,
               delay = MAX_DELAY,
               value,
@@ -521,6 +523,7 @@ int main(int argc, char **argv) {
             new_load = cpu_load();
 
             velocity = (temp - oldtemp) / (delay / 1000 );
+            displacement = temp - oldtemp;
             distance = temp - TARGET_TEMP;
             oldtemp = temp;
             direction = velocity * distance;
@@ -528,7 +531,7 @@ int main(int argc, char **argv) {
             sign = (distance >= 0.0) ? 1.0 : -1.0;
 
             if (distance > 2.0 ) {
-                delay = MAX_DELAY / 5;
+                delay = MAX_DELAY ;
             } else if ((distance < 0.5 ) && (distance > -1.5)) {
                 delay = MAX_DELAY * 2;
             } else {
@@ -539,60 +542,45 @@ int main(int argc, char **argv) {
             if ((distance < 0.0) && stopped ) {
                 speed = 0.0;
                 delay = MAX_DELAY * 2;
-            } else if (velocity < -1.0){ 
-                speed = speed * 0.8;
-            } else if (velocity > 1.5){ 
-                speed = speed * velocity;
             } else if ((distance > 0.0 ) && stopped) {
                 speed = MIN_DUTY;
                 delay = MAX_DELAY / 2;
                 min_count = 0;
+            } else if (velocity < -1.2){ 
+                speed = speed * 0.7;
+            } else if (velocity < -0.5){ 
+                if (distance > 0) speed = speed * 0.8;
+            } else if ((velocity > 1.2) || (new_load - old_load > 0.3)){ 
+                if (distance > 0.0) {
+                    speed = speed * (1.0 + displacement) ;
+                }
+            } else if (distance > 2.5) {
+                if ((velocity > 0.5) ) speed += MIN_DUTY * 3.0 * attack;
+                if (velocity > 0.0) speed += MIN_DUTY * attack * 1.0;
+                if (velocity < -0.3) speed -= MIN_DUTY * 2.0 * decay;
+                else if (velocity < -0.05) speed -= MIN_DUTY * decay;
+            } else if (distance > 1.0) {
+                if (velocity > 0.0) speed += 1.5 * attack;
+                if (velocity < -0.2) speed += MIN_DUTY * (-1 + velocity) * decay;
             } else if (distance > 0.0) {
-                if (velocity < -0.25)
-                    speed += speed / 20.0  * decay / velocity;
-                if (velocity < 0.0) {
-                    speed -= 1.0;
-                } else if (new_load - old_load > 0.4) {
-                    speed += MIN_DUTY * 3.0;
-                } else if (velocity > 0.25) {
-                    if (verbose) fprintf(stderr, "Velocity > 0.25\n");
-                    speed += distance * distance * attack * velocity ;
-                } else if (distance < 5.0){
-                    if (distance > 2.0) speed += 1.0;
-                    if (distance > 1.0) speed += 1.0;
-                    speed += 1.0 ;
-                    // These lines don't seem to be having the desired effect
-                    // if ( (distance > 1.0) && (new_load - old_load > 0.10)) speed += MIN_DUTY * 2.0; 
-                    // else if(new_load - old_load > 0.25) speed += MIN_DUTY * 3.0; /* can probably remove */
-                    if (verbose) fprintf(stderr, "distance < 5.0 %f new speed %f\n", distance, speed);
-                } else {
-                    if (verbose) fprintf(stderr, "larger increment\n");
-                    speed += distance * distance * attack * (new_load > old_load?2.0:1.0);
-                    if(new_load - old_load > 0.25) speed += MIN_DUTY * 3.0;
-                }
-            } else if ((distance < 0.0) && (velocity >= 0.0)) {
-                if (verbose) fprintf(stderr, "Distance < 0 and velocity > 0\n");
-                speed -= distance * velocity * decay;
-                if ((distance < -2.0) && (new_load < 0.10))
-                    speed = speed * 0.8;
-            } else if ((distance < 0.0) && (velocity < 0.0)) {
-                delay = MAX_DELAY / 2.5;
-                if (distance < -1.5) {
-                    speed -= 1.0;
-                    if (new_load <= old_load) speed = speed * 0.9;
-                }
-                if (distance < -2.5) {
-                    speed -= 1.0;
-                    if (new_load <= old_load) speed = speed * 0.9;
-                }
-                if (velocity > -0.5)
-                    speed -= 1.0;
-                else {
-                    speed += velocity * decay * (new_load < old_load?2.0:1.0 );
-                    delay = MAX_DELAY / 2.5;
-                }
-            } else if ((distance < 0.0 )) {
-                speed -= distance * distance * decay;
+                if (velocity > 0.0) speed += 1.0 * attack;
+                if (velocity < -0.1) speed -= MIN_DUTY;
+                if (velocity < -0.5) speed -= MIN_DUTY;
+            } else if (distance < -5.0) {
+                if (velocity <= -0.5) speed *= 0.6;
+                else if (velocity <= -0.3) speed *= 0.7;
+                else if (velocity < 0.0) speed *= 0.8;
+                else if (velocity == 0.0) speed *= 0.9;
+            } else if (distance < -3.0) {
+                if (velocity < -0.3) speed = speed * 0.7;
+                else if (velocity < 0.0) speed = speed * 0.8;
+            } else if (distance < -2.0) {
+                if (velocity <= 0.0) speed = speed * 0.8;
+                if (velocity > 0.05) speed += 0.5 * attack;
+            } else if (distance < 0.0) {
+                if (velocity < 0.0) speed -= 2.0 * decay;
+                else if (velocity > 0.0) speed += 0.125 * attack;
+                else speed -= 1.0;
             }
 
             if (speed > (float)MAX_DUTY ) {
