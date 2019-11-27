@@ -236,15 +236,15 @@ void read_options(int argc, char ** argv) {
                 if (setting == QUIETER) {
                     setting = QUIETEST;
                     attack = 0.25;
-                    decay = 0.25;
+                    decay = 0.5;
                 } else if (setting == QUIET) {
                     setting = QUIETER;
                     attack = 0.5;
-                    decay = 0.25;
+                    decay = 0.5;
                 } else {
                     setting = QUIET;
                     attack = 0.5;
-                    decay = 0.25;
+                    decay = 0.5;
                 }
                 break;  
             case 't':
@@ -325,15 +325,15 @@ void read_config(char * conf_file_name) {
             if (!strcmp(value, "Quiet")) {
                 setting = QUIET;
                 attack = 0.5;
-                decay = 0.25;
+                decay = 0.5;
             } else if (!strcmp(value, "Quieter")) {
                 setting = QUIETER;
                 attack = 0.5;
-                decay = 0.25;
+                decay = 0.5;
             } else if (!strcmp(value, "Quietest")) {
                 setting = QUIETEST;
                 attack = 0.25;
-                decay = 0.25;
+                decay = 0.5;
             } else if (!strcmp(value, "Cool")) {
                 setting = COOL;
                 attack = 2.0;
@@ -438,7 +438,7 @@ int main(int argc, char **argv) {
 
     make_pidfile(strcat(pid_dir, basename(argv[0])));
 
-    min_duty = (MAX_DUTY / 40 );
+    min_duty = (MAX_DUTY / 50 );
     scale_factor = (MAX_DUTY * MAX_DELAY / 2000000.0);
 
     // Set up signal handlers
@@ -546,41 +546,18 @@ int main(int argc, char **argv) {
                 speed = MIN_DUTY;
                 delay = MAX_DELAY / 2;
                 min_count = 0;
-            } else if (velocity < -1.2){ 
-                speed = speed * 0.7;
-            } else if (velocity < -0.5){ 
-                if (distance > 0) speed = speed * 0.8;
-            } else if ((velocity > 1.2) || (new_load - old_load > 0.3)){ 
-                if (distance > 0.0) {
-                    speed = speed * (1.0 + displacement) ;
-                }
-            } else if (distance > 2.5) {
-                if ((velocity > 0.5) ) speed += MIN_DUTY * 3.0 * attack;
-                if (velocity > 0.0) speed += MIN_DUTY * attack * 1.0;
-                if (velocity < -0.3) speed -= MIN_DUTY * 2.0 * decay;
-                else if (velocity < -0.05) speed -= MIN_DUTY * decay;
-            } else if (distance > 1.0) {
-                if (velocity > 0.0) speed += 1.5 * attack;
-                if (velocity < -0.2) speed += MIN_DUTY * (-1 + velocity) * decay;
-            } else if (distance > 0.0) {
-                if (velocity > 0.0) speed += 1.0 * attack;
-                if (velocity < -0.1) speed -= MIN_DUTY;
-                if (velocity < -0.5) speed -= MIN_DUTY;
+            } else if (distance > 5.0) {
+                if (velocity >= 0.0) speed += MIN_DUTY * (1 + displacement) *4.0 * attack;
+                else if (velocity < 0) speed -= MIN_DUTY / 2.0 * decay;
             } else if (distance < -5.0) {
-                if (velocity <= -0.5) speed *= 0.6;
-                else if (velocity <= -0.3) speed *= 0.7;
-                else if (velocity < 0.0) speed *= 0.8;
-                else if (velocity == 0.0) speed *= 0.9;
-            } else if (distance < -3.0) {
-                if (velocity < -0.3) speed = speed * 0.7;
-                else if (velocity < 0.0) speed = speed * 0.8;
-            } else if (distance < -2.0) {
-                if (velocity <= 0.0) speed = speed * 0.8;
-                if (velocity > 0.05) speed += 0.5 * attack;
+                if (velocity < 0.0) speed = speed * 0.7;
+                else speed -= MIN_DUTY * decay;
+            } else if (distance > 0.0) {
+                if (velocity > 0.0) speed += 2.5 * attack;
+                else if (velocity < 0.0) speed -= 1.0 * decay;
             } else if (distance < 0.0) {
-                if (velocity < 0.0) speed -= 2.0 * decay;
-                else if (velocity > 0.0) speed += 0.125 * attack;
-                else speed -= 1.0;
+                if (velocity < 0.0) speed -= 4.0 * decay;
+                else speed -= 2.0 * decay;
             }
 
             if (speed > (float)MAX_DUTY ) {
