@@ -397,7 +397,7 @@ void * write_status(void * arg) {
 
         fprintf(outfifo, "%f\n", value/MAX_DUTY*100.0);
         fclose(outfifo);
-        usleep(250000);
+        usleep(25000);
     }
 }
 
